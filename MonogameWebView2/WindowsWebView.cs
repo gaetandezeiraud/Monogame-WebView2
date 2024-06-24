@@ -1,9 +1,11 @@
 ﻿using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Xna.Framework;
 using System;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.WindowsAndMessaging;
@@ -18,12 +20,14 @@ namespace MonogameWebView2
         private static UiThreadSynchronizationContext _uiThreadSyncCtx;
         private GameWindow _gameWindow;
 
+        private WebView2 webView2;
+
         public WindowsWebView()
         {
             Environment.SetEnvironmentVariable("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "00FFFFFF");
         }
 
-        public void Initialize(GameWindow window)
+        public async void Initialize(GameWindow window)
         {
             _gameWindow = window;
             window.ClientSizeChanged += Window_ClientSizeChanged;
@@ -31,7 +35,20 @@ namespace MonogameWebView2
             _uiThreadSyncCtx = new UiThreadSynchronizationContext((HWND)window.Handle);
             SynchronizationContext.SetSynchronizationContext(_uiThreadSyncCtx);
 
-            _ = CreateCoreWebView2Async(this, (HWND)window.Handle);
+
+            IntPtr winHandle = (HWND)window.Handle;
+            Form winForm = Control.FromHandle(winHandle) as Form;
+
+            webView2 = new WebView2();
+            webView2.Dock = DockStyle.Fill;
+            webView2.DefaultBackgroundColor = System.Drawing.Color.Transparent;
+            winForm.Controls.Add(webView2);
+            //webView2.Source = new Uri("https://www.google.com");
+
+            var environment = await CoreWebView2Environment.CreateAsync(null, null, null);
+            await webView2.EnsureCoreWebView2Async(environment);
+
+            webView2.NavigateToString("<h1 style='color: red'>Hello world!</h1>");
         }
 
         public void Update(Game g)
@@ -52,48 +69,9 @@ namespace MonogameWebView2
         }
 
         // Private methods
-        private static async Task CreateCoreWebView2Async(WindowsWebView view, HWND hwnd)
-        {
-            try
-            {
-                Console.WriteLine("Initializing WebView2...");
-                var environment = await CoreWebView2Environment.CreateAsync(null, null, null);
-                _controller = await environment.CreateCoreWebView2ControllerAsync(hwnd);
-
-                _controller.DefaultBackgroundColor = System.Drawing.Color.Transparent; // avoids flash of white when page first renders
-                PInvoke.GetClientRect(hwnd, out var hwndRect);
-                _controller.Bounds = new System.Drawing.Rectangle(0, 0, hwndRect.right, hwndRect.bottom);
-                _controller.AllowExternalDrop = false;
-
-                // Load HTML
-                _controller.CoreWebView2.NavigateToString("<h1 style='color: red'>Hello world!</h1>");
-
-
-                _controller.IsVisible = true;
-
-                Console.WriteLine("WebView2 initialization succeeded.");
-            }
-            catch (WebView2RuntimeNotFoundException)
-            {
-                var result = PInvoke.MessageBox(hwnd, "WebView2 runtime not installed.", "Error", MESSAGEBOX_STYLE.MB_OK | MESSAGEBOX_STYLE.MB_ICONERROR);
-
-                if (result == MESSAGEBOX_RESULT.IDYES)
-                {
-                    // TODO: download WV2 bootstrapper from https://go.microsoft.com/fwlink/p/?LinkId=2124703 and run it
-                }
-
-                Environment.Exit(1);
-            }
-            catch (Exception ex)
-            {
-                PInvoke.MessageBox(hwnd, $"Failed to initialize WebView2:{Environment.NewLine}{ex}", "Error", MESSAGEBOX_STYLE.MB_OK | MESSAGEBOX_STYLE.MB_ICONERROR);
-                Environment.Exit(1);
-            }
-        }
-
         private void Window_ClientSizeChanged(object? sender, EventArgs e)
         {
-            _controller.Bounds = new System.Drawing.Rectangle(0, 0, _gameWindow.ClientBounds.Width, _gameWindow.ClientBounds.Height);
+            //_controller.Bounds = new System.Drawing.Rectangle(0, 0, _gameWindow.ClientBounds.Width, _gameWindow.ClientBounds.Height);
         }
     }
 }
