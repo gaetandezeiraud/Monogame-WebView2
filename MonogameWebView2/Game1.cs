@@ -17,6 +17,7 @@ namespace MonogameWebView2
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
             _webView = webView;
+            Window.AllowUserResizing = true;
         }
 
         protected override void Initialize()
